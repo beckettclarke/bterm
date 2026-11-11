@@ -1,4 +1,4 @@
-<a href="https://beckettclarke.github.io/bterm/">
+<a href="https://term.beckettclarke.ca/">
   <img src=".github/readme/hero.png" alt="bterm. A small, fast terminal for the Mac. Native AppKit, under 5 MB." width="100%">
 </a>
 
@@ -12,7 +12,7 @@
 
 <p align="center">
   A small, fast, native terminal for macOS, with tabs, splits, a command palette and five themes.<br>
-  AppKit and Core Animation. No Electron, no web view. <a href="https://beckettclarke.github.io/bterm/"><b>beckettclarke.github.io/bterm</b></a>
+  AppKit and Core Animation. No Electron, no web view. <a href="https://term.beckettclarke.ca/"><b>term.beckettclarke.ca</b></a>
 </p>
 
 <br>
@@ -196,7 +196,7 @@ swift scripts/render-banners.swift
 </a>
 
 <p align="center">
-  <a href="https://beckettclarke.github.io/bterm/">Website</a> &nbsp;·&nbsp;
+  <a href="https://term.beckettclarke.ca/">Website</a> &nbsp;·&nbsp;
   <a href="https://github.com/beckettclarke/bterm/releases">Releases</a> &nbsp;·&nbsp;
   <a href="https://github.com/beckettclarke/bterm/issues">Issues</a> &nbsp;·&nbsp;
   <a href="https://beckettclarke.ca">beckettclarke.ca</a>

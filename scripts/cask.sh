@@ -13,7 +13,7 @@ cask "bterm" do
   url "https://github.com/beckettclarke/bterm/releases/download/v#{version}/bterm.zip"
   name "bterm"
   desc "Small, fast, native terminal"
-  homepage "https://beckettclarke.github.io/bterm/"
+  homepage "https://term.beckettclarke.ca/"
 
   livecheck do
     url :url
