@@ -32,6 +32,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 first.focusedPane?.term.send(txt: run.replacingOccurrences(of: "\\n", with: "\r"))
             }
         }
+        // BTERM_SNAPSHOT=out.png renders the key window to a PNG after BTERM_SNAPSHOT_DELAY
+        // seconds (default 4) and quits. Used for the README and site screenshots.
+        if let out = env["BTERM_SNAPSHOT"] {
+            let delay = env["BTERM_SNAPSHOT_DELAY"].flatMap(Double.init) ?? 4
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Self.snapshot(NSApp.keyWindow ?? first.window, to: out)
+                exit(0)
+            }
+        }
+    }
+
+    /// Draws the window's layer tree, frame included, into a PNG at the backing scale.
+    private static func snapshot(_ window: NSWindow?, to path: String) {
+        guard let window, let view = window.contentView?.superview ?? window.contentView,
+              let layer = view.layer else { return }
+        let scale = window.backingScaleFactor
+        let size = view.bounds.size
+        func canvas() -> (NSBitmapImageRep, CGContext)? {
+            guard let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+                  let ctx = NSGraphicsContext(bitmapImageRep: rep)?.cgContext else { return nil }
+            return (rep, ctx)
+        }
+        guard let (layers, ctx) = canvas(), let (out, outCtx) = canvas() else { return }
+        ctx.scaleBy(x: scale, y: scale)
+        if layer.isGeometryFlipped {
+            ctx.translateBy(x: 0, y: size.height)
+            ctx.scaleBy(x: 1, y: -1)
+        }
+        layer.render(in: ctx)
+        // Backgrounds painted by the window server are missing from the layer tree, so lay the
+        // render over the terminal background.
+        let bounds = CGRect(x: 0, y: 0, width: CGFloat(out.pixelsWide), height: CGFloat(out.pixelsHigh))
+        outCtx.setFillColor(Settings.shared.theme.bgColor.cgColor)
+        outCtx.fill(bounds)
+        if let image = layers.cgImage { outCtx.draw(image, in: bounds) }
+        try? out.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
