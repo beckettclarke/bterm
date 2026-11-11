@@ -20,7 +20,7 @@ cask "bterm" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "bterm.app"
 CASK
@@ -30,10 +30,11 @@ cat <<'CASK'
 
   # bterm releases are ad-hoc signed, not notarized. Clearing the quarantine flag lets
   # the app open without the "can't be checked for malicious software" prompt.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/bterm.app"],
-                   sudo: false
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:           ["-dr", "com.apple.quarantine", "{{appdir}}/bterm.app"],
+        writable_paths: ["{{appdir}}/bterm.app"],
+        must_succeed:   false
   end
 CASK
 fi
