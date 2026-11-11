@@ -23,19 +23,35 @@ done
 
 ./scripts/fetch-swiftterm.sh
 
-ARCHS=()
-if [ "$UNIVERSAL" = 1 ]; then ARCHS=(--arch arm64 --arch x86_64); fi
-FLAGS=(-c release --product bterm ${ARCHS[@]+"${ARCHS[@]}"}
-       -Xswiftc -Osize -Xswiftc -gnone -Xlinker -dead_strip -Xlinker -x)
-
-echo "› compiling (release$([ "$UNIVERSAL" = 1 ] && echo ", universal"))"
+FLAGS=(-c release --product bterm -Xswiftc -Osize -Xswiftc -gnone -Xlinker -dead_strip -Xlinker -x)
 mkdir -p build
-if ! swift build "${FLAGS[@]}" > build/swift-build.log 2>&1; then
-    grep -E "error:" build/swift-build.log || tail -40 build/swift-build.log
-    echo "build failed (full log: build/swift-build.log)" >&2
-    exit 1
+
+# Each architecture is built on its own and the two are joined with lipo. A single
+# multi-arch `swift build` goes through Xcode's build system, which older Xcodes can't
+# do with SwiftTerm's build plugin.
+compile() {  # compile [triple] -> prints the binary path
+    local triple=(${1:+--triple "$1"})
+    if ! swift build "${FLAGS[@]}" ${triple[@]+"${triple[@]}"} >> build/swift-build.log 2>&1; then
+        grep -E "error:" build/swift-build.log >&2 || tail -40 build/swift-build.log >&2
+        echo "build failed (full log: build/swift-build.log)" >&2
+        exit 1
+    fi
+    echo "$(swift build -c release ${triple[@]+"${triple[@]}"} --show-bin-path)/bterm"
+}
+
+: > build/swift-build.log
+if [ "$UNIVERSAL" = 1 ]; then
+    # Copy each binary out straight away: some toolchains use one output folder for both.
+    echo "› compiling (release, arm64)"
+    cp "$(compile arm64-apple-macosx13.0)" build/bterm-arm64
+    echo "› compiling (release, x86_64)"
+    cp "$(compile x86_64-apple-macosx13.0)" build/bterm-x86_64
+    BIN="build/bterm-universal"
+    lipo -create build/bterm-arm64 build/bterm-x86_64 -output "$BIN"
+else
+    echo "› compiling (release)"
+    BIN="$(compile)"
 fi
-BIN="$(swift build -c release ${ARCHS[@]+"${ARCHS[@]}"} --show-bin-path)/bterm"
 [ -x "$BIN" ] || { echo "build failed: no binary at $BIN" >&2; exit 1; }
 
 VERSION="${BTERM_VERSION:-}"
