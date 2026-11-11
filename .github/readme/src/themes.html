@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://beckettclarke.github.io/resources/fonts/satoshi/import.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="banner.css">
+<style>
+  .b { width: 1200px; height: 560px; }
+  .fan { position: absolute; inset: 0; }
+  .fan figure { position: absolute; top: 46px; width: 600px; margin: 0; }
+  .fan img { width: 100%; border-radius: 9px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .14), 0 30px 70px -16px rgba(0, 0, 0, .9); }
+  .fan figcaption { margin-top: 16px; text-align: center; }
+  .fan figure:nth-child(1) { left: 40px;  z-index: 1; transform: rotate(-4deg) translateY(30px); }
+  .fan figure:nth-child(2) { left: 170px; z-index: 2; transform: rotate(-2deg) translateY(10px); }
+  .fan figure:nth-child(3) { left: 300px; z-index: 5; transform: none; }
+  .fan figure:nth-child(4) { left: 430px; z-index: 4; transform: rotate(2deg) translateY(10px); }
+  .fan figure:nth-child(5) { left: 560px; z-index: 3; transform: rotate(4deg) translateY(30px); }
+  .names { position: absolute; left: 0; right: 0; bottom: 30px; display: flex; justify-content: center; }
+  .glow { left: 100px; top: 120px; width: 1000px; height: 500px; }
+</style>
+<div class="b">
+  <div class="glow"></div>
+  <div class="fan">
+    <figure><img src="../../../site/assets/shots/theme-vercel-light.png"></figure>
+    <figure><img src="../../../site/assets/shots/theme-github.png"></figure>
+    <figure><img src="../../../site/assets/shots/theme-vercel.png"></figure>
+    <figure><img src="../../../site/assets/shots/theme-supabase.png"></figure>
+    <figure><img src="../../../site/assets/shots/theme-github-light.png"></figure>
+  </div>
+  <div class="names label">Vercel Light<span class="sep">·</span>GitHub Dark<span class="sep">·</span><span style="color:var(--paper)">Vercel</span><span class="sep">·</span>Supabase<span class="sep">·</span>GitHub Light</div>
+</div>

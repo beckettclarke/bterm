@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://beckettclarke.github.io/resources/fonts/satoshi/import.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="banner.css">
+<style>
+  .b { width: 1200px; height: 628px; padding: 46px 52px; }
+  .top { display: flex; align-items: center; justify-content: space-between; }
+  .top .right { display: flex; align-items: center; gap: 26px; }
+  h1 { margin: 120px 0 0; width: 580px; font-size: 58px; line-height: .98; letter-spacing: -.045em; font-weight: 700; }
+  h1 span { color: rgba(242, 237, 230, .5); }
+  .shot {
+    position: absolute;
+    left: 752px;
+    top: 124px;
+    width: 800px;
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 40px 90px -20px rgba(0, 0, 0, .9);
+  }
+  .glow { left: 540px; top: 300px; width: 1000px; height: 600px; }
+  .bottom .cmd { height: 52px; font-size: 13.5px; padding: 0 18px; }
+  .bottom { position: absolute; left: 52px; right: 52px; bottom: 46px; display: flex; align-items: center; gap: 14px; }
+</style>
+<div class="b">
+  <div class="glow"></div>
+  <div class="top">
+    <div class="brand"><img src="../../../site/assets/img/icon-512.png">bterm</div>
+    <div class="right">
+      <span class="label">Native<span class="sep">·</span>Tiny<span class="sep">·</span>Open source</span>
+      <span class="pill label" style="color: var(--paper)"><span class="dot"></span>macOS 13+</span>
+    </div>
+  </div>
+  <h1>A small, fast terminal for the Mac. <span>Native AppKit, under 5&nbsp;MB.</span></h1>
+  <img class="shot" src="../../../site/assets/shots/theme-vercel.png">
+  <div class="bottom">
+    <span class="btn">Download for macOS <i>↓</i></span>
+    <span class="cmd"><b>$</b> brew install --cask beckettclarke/tap/bterm</span>
+  </div>
+</div>
