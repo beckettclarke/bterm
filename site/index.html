@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bterm, a small terminal for the Mac</title>
+<meta name="description" content="bterm is a small, fast, native terminal for macOS. AppKit and Core Animation, under 5 MB, with tabs, splits, a command palette and five themes. Free and open source.">
+<meta name="theme-color" content="#0d0c0b">
+<link rel="icon" href="assets/img/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="bterm">
+<meta property="og:url" content="https://beckettclarke.github.io/bterm/">
+<meta property="og:title" content="bterm, a small terminal for the Mac">
+<meta property="og:description" content="Native AppKit, under 5 MB, with tabs, splits and a command palette. Free and open source.">
+<meta property="og:image" content="https://beckettclarke.github.io/bterm/assets/img/og.jpg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1256">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://beckettclarke.github.io/bterm/assets/img/og.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://beckettclarke.github.io/resources/fonts/satoshi/import.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/site.css?v=4">
+<script src="assets/site.js?v=4" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div id="tint" aria-hidden="true"></div>
+
+<header id="header">
+  <nav class="navbar" aria-label="Main">
+    <a class="brand" href="./" aria-label="bterm, home">
+      <img class="brand-mark" src="assets/img/icon-512.png" alt="" width="26" height="26">
+      <span class="brand-name">bterm</span>
+    </a>
+    <div class="nav">
+      <a class="ddbutton" href="#features">Features</a>
+      <a class="ddbutton" href="#motion">Motion</a>
+      <a class="ddbutton" href="#shortcuts">Shortcuts</a>
+      <a class="ddbutton" href="#install">Install</a>
+      <a class="ddbutton" href="https://github.com/beckettclarke/bterm">GitHub</a>
+    </div>
+    <a class="navcta" href="https://github.com/beckettclarke/bterm/releases/latest/download/bterm.dmg" data-download>Download
+      <span class="cta-arrow" aria-hidden="true"><span class="arr arr-d"><svg viewBox="0 0 16 16"><path d="M8 2.5v10M3.5 8.5 8 13l4.5-4.5"/></svg></span></span>
+    </a>
+  </nav>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <section class="hero wrap">
+    <nav class="crumbs label" aria-label="Breadcrumb" data-reveal>
+      <a href="https://beckettclarke.ca/#apps">beckettclarke.ca</a><span class="sep">/</span><span>Apps</span><span class="sep">/</span><span>bterm</span>
+    </nav>
+
+    <h1 class="hero-title" data-reveal style="--d:1">
+      <span class="hi">A small, fast terminal for the&nbsp;Mac.</span>
+      <span class="dim">Native AppKit, under 5&nbsp;MB, with tabs, splits and a command&nbsp;palette.</span>
+    </h1>
+
+    <div class="hero-actions" data-reveal style="--d:2">
+      <a class="btn" href="https://github.com/beckettclarke/bterm/releases/latest/download/bterm.dmg" data-download>Download for macOS
+        <span class="btn-dot" aria-hidden="true"><span class="arr arr-d"><svg viewBox="0 0 16 16"><path d="M8 2.5v10M3.5 8.5 8 13l4.5-4.5"/></svg></span></span>
+      </a>
+      <button class="cmd" type="button" data-copy="brew install --cask beckettclarke/tap/bterm" aria-label="Copy the Homebrew install command">
+        <span class="cmd-p" aria-hidden="true">$</span>
+        <code>brew install --cask beckettclarke/tap/bterm</code>
+        <span class="cmd-i" aria-hidden="true">
+          <svg class="i-copy" viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>
+          <svg class="i-done" viewBox="0 0 16 16"><path d="m3 8.5 3.2 3L13 4.5"/></svg>
+        </span>
+      </button>
+    </div>
+    <p class="hero-meta label" data-reveal style="--d:3">
+      <span data-version>v1.0.0</span><span class="sep">·</span><span>macOS 13 or later</span><span class="sep">·</span><span>Apple silicon and Intel</span><span class="sep">·</span><span>Free, MIT licensed</span>
+    </p>
+  </section>
+
+  <section class="stage wrap" aria-label="Screenshots">
+    <div class="themes" data-reveal style="--d:3">
+      <span class="label">Theme</span>
+      <div class="seg" role="radiogroup" aria-label="Theme">
+        <button type="button" role="radio" aria-checked="true" data-theme="vercel" style="--sw:#0a0a0a; --sa:#ededed">Vercel</button>
+        <button type="button" role="radio" aria-checked="false" data-theme="github" style="--sw:#0d1117; --sa:#f78166">GitHub Dark</button>
+        <button type="button" role="radio" aria-checked="false" data-theme="supabase" style="--sw:#171717; --sa:#3ecf8e">Supabase</button>
+        <button type="button" role="radio" aria-checked="false" data-theme="vercel-light" style="--sw:#ffffff; --sa:#171717">Vercel Light</button>
+        <button type="button" role="radio" aria-checked="false" data-theme="github-light" style="--sw:#ffffff; --sa:#fd8c73">GitHub Light</button>
+      </div>
+    </div>
+    <figure class="window" data-reveal style="--d:4">
+      <img class="shot is-on" src="assets/shots/theme-vercel.png" width="2560" height="1560" alt="bterm with two tabs. The left pane shows fastfetch reporting the terminal as bterm 1.0.0, the right pane has vim open on Theme.swift. A status bar at the bottom shows vim, the folder and the git branch." fetchpriority="high">
+    </figure>
+  </section>
+
+  <section class="numbers wrap" aria-label="At a glance">
+    <dl class="stats">
+      <div class="stat" data-reveal><dt class="label">App size</dt><dd><b>4.7 MB</b><span class="dim">universal, 2.6 MB to download</span></dd></div>
+      <div class="stat" data-reveal style="--d:1"><dt class="label">Memory</dt><dd><b>40 MB</b><span class="dim">one window, idle</span></dd></div>
+      <div class="stat" data-reveal style="--d:2"><dt class="label">Built with</dt><dd><b>AppKit</b><span class="dim">no Electron, no web view</span></dd></div>
+      <div class="stat" data-reveal style="--d:3"><dt class="label">Emulation</dt><dd><b>xterm</b><span class="dim">256 colour, truecolor, Kitty, Sixel</span></dd></div>
+    </dl>
+  </section>
+
+  <section class="sec wrap" id="features">
+    <div class="sec-h" data-reveal>
+      <h2 class="title">What it does</h2>
+      <p class="dim">Everything you'd expect from a terminal, and a few small things that make it nicer to sit in all day.</p>
+    </div>
+
+    <div class="pair">
+      <figure class="card" data-reveal>
+        <div class="card-art"><img src="assets/shots/palette.png" width="2560" height="1560" loading="lazy" alt="The command palette open over a terminal, listing New Tab, Open Settings, Split Right, Split Down and more, each with its shortcut."></div>
+        <figcaption><b>Command palette</b><span class="dim">Press <kbd>⌘</kbd><kbd>P</kbd> for every command, theme and font. Themes preview live as you arrow through them.</span></figcaption>
+      </figure>
+      <figure class="card" data-reveal style="--d:1">
+        <div class="card-art card-art-pad"><img src="assets/shots/settings.png" width="1600" height="1160" loading="lazy" alt="The Settings window on the Appearance page, with five theme cards and a glass background toggle."></div>
+        <figcaption><b>Settings that apply live</b><span class="dim">Appearance, text, cursor and motion, all in one window. Every open terminal updates as you change them.</span></figcaption>
+      </figure>
+    </div>
+
+    <ul class="feats">
+      <li data-reveal><span class="label">Emulation</span><p>Full xterm emulation through <a class="ul" href="https://github.com/migueldeicaza/SwiftTerm">SwiftTerm</a>. vim, htop and tmux run on the alternate screen, with mouse reporting, bracketed paste, OSC&nbsp;8 links, the Kitty keyboard protocol, inline images and wide characters.</p></li>
+      <li data-reveal style="--d:1"><span class="label">Tabs and splits</span><p>New tabs and windows open in the folder you're in. Split right or down as many times as you like, move between panes with the arrow keys, and drag tabs to reorder them.</p></li>
+      <li data-reveal style="--d:2"><span class="label">Status bar</span><p>The running process, the folder and the git branch, read straight from the kernel. There's no shell integration to install.</p></li>
+      <li data-reveal style="--d:3"><span class="label">Drag and drop</span><p>Drop a file on a pane to paste its escaped path. Drop a folder on the Dock icon to open a window there.</p></li>
+      <li data-reveal style="--d:4"><span class="label">Fonts</span><p>Any installed monospace font, from SF Mono to Geist Mono, JetBrains Mono, Berkeley Mono and Fira Code, with a live preview.</p></li>
+      <li data-reveal style="--d:5"><span class="label">GPU renderer</span><p>An optional Metal renderer for very heavy output. It's off by default, because the cursor can't glide when Metal draws it.</p></li>
+    </ul>
+  </section>
+
+  <section class="sec wrap" id="motion">
+    <div class="sec-h" data-reveal>
+      <h2 class="title">Motion</h2>
+      <p class="dim">Small animations, there to show you where things went. They step aside when output floods in, and line slide-in and cursor glide each have a switch in Settings.</p>
+    </div>
+    <dl class="rows">
+      <div data-reveal><dt>New lines</dt><dd>When output scrolls, each new line slides up from below. It switches itself off for floods like <code>cat</code>, builds and <code>yes</code>, and inside full-screen apps.</dd></div>
+      <div data-reveal><dt>Cursor</dt><dd>Glides between cells and fades as it blinks.</dd></div>
+      <div data-reveal><dt>Tabs</dt><dd>Grow in and collapse out. The underline slides between tabs, and switching slides the content in from the side you came from.</dd></div>
+      <div data-reveal><dt>Panes</dt><dd>New splits rise in and unfocused panes dim. The bell flashes the pane's border.</dd></div>
+      <div data-reveal><dt>Status</dt><dd>A dot pulses while a command runs. Background tabs with new output get a small blue dot.</dd></div>
+      <div data-reveal><dt>Resizing</dt><dd>A <code>cols × rows</code> readout sits in the middle of the window while you drag.</dd></div>
+    </dl>
+  </section>
+
+  <section class="sec wrap" id="shortcuts">
+    <div class="sec-h" data-reveal>
+      <h2 class="title">Shortcuts</h2>
+      <p class="dim">The ones you already know from Terminal and iTerm, plus a palette for the rest.</p>
+    </div>
+    <dl class="keys" data-reveal>
+      <div><dt><kbd>⌘</kbd><kbd>P</kbd></dt><dd>Command palette</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>,</kbd></dt><dd>Settings</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>T</kbd> <i>/</i> <kbd>⌘</kbd><kbd>N</kbd></dt><dd>New tab / window</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>D</kbd> <i>/</i> <kbd>⇧</kbd><kbd>⌘</kbd><kbd>D</kbd></dt><dd>Split right / down</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>W</kbd></dt><dd>Close pane</dd></div>
+      <div><dt><kbd>⌥</kbd><kbd>⌘</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Move between panes</dd></div>
+      <div><dt><kbd>⇧</kbd><kbd>⌘</kbd><kbd>[</kbd> <kbd>]</kbd></dt><dd>Previous / next tab</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>1</kbd>…<kbd>9</kbd></dt><dd>Jump to a tab</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>K</kbd></dt><dd>Clear the buffer</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>F</kbd></dt><dd>Find</dd></div>
+      <div><dt><kbd>⌘</kbd><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd></dt><dd>Font size</dd></div>
+      <div><dt><kbd>⌘</kbd> click</dt><dd>Open a link</dd></div>
+    </dl>
+  </section>
+
+  <section class="sec wrap" id="install">
+    <div class="sec-h" data-reveal>
+      <h2 class="title">Install</h2>
+      <p class="dim">One universal build for Apple silicon and Intel Macs on macOS 13 Ventura or later.</p>
+    </div>
+
+    <div class="ways">
+      <div class="way" data-reveal>
+        <span class="label">01 · Download</span>
+        <h3>Disk image</h3>
+        <p class="dim">Open it and drag bterm to Applications.</p>
+        <a class="btn" href="https://github.com/beckettclarke/bterm/releases/latest/download/bterm.dmg" data-download>bterm.dmg
+          <span class="btn-dot" aria-hidden="true"><span class="arr arr-d"><svg viewBox="0 0 16 16"><path d="M8 2.5v10M3.5 8.5 8 13l4.5-4.5"/></svg></span></span>
+        </a>
+      </div>
+      <div class="way" data-reveal style="--d:1">
+        <span class="label">02 · Homebrew</span>
+        <h3>From the tap</h3>
+        <p class="dim">Updates come with <code>brew upgrade</code>.</p>
+        <button class="code" type="button" data-copy="brew install --cask beckettclarke/tap/bterm" aria-label="Copy the Homebrew install command">
+          <span class="code-h label" aria-hidden="true"><span>Terminal</span><span class="code-i"><span class="t-copy">Copy</span><span class="t-done">Copied</span></span></span>
+          <code>brew install --cask \
+  beckettclarke/tap/bterm</code>
+        </button>
+      </div>
+      <div class="way" data-reveal style="--d:2">
+        <span class="label">03 · Source</span>
+        <h3>Build it yourself</h3>
+        <p class="dim">Needs Xcode 16 or newer.</p>
+        <button class="code" type="button" data-copy="git clone https://github.com/beckettclarke/bterm &amp;&amp; cd bterm &amp;&amp; ./build.sh --install" aria-label="Copy the build commands">
+          <span class="code-h label" aria-hidden="true"><span>Terminal</span><span class="code-i"><span class="t-copy">Copy</span><span class="t-done">Copied</span></span></span>
+          <code>git clone \
+  https://github.com/beckettclarke/bterm
+cd bterm
+./build.sh --install</code>
+        </button>
+      </div>
+    </div>
+
+    <p class="tip" data-reveal>
+      <span class="label">First launch</span>
+      <span>bterm isn't notarized by Apple yet, so the first time you open the download, macOS may say it can't check it. Open <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>. Homebrew takes care of this for you.</span>
+    </p>
+  </section>
+
+</main>
+
+<footer id="footer">
+  <div class="foot wrap">
+    <div class="foot-cta">
+      <span class="label">Free and open source</span>
+      <a class="foot-big" href="https://github.com/beckettclarke/bterm/releases/latest/download/bterm.dmg" data-download><span>Get bterm</span><span class="arr arr-d"><svg viewBox="0 0 16 16"><path d="M8 2.5v10M3.5 8.5 8 13l4.5-4.5"/></svg></span></a>
+    </div>
+
+    <div class="foot-cols">
+      <div>
+        <h2 class="label">bterm</h2>
+        <a href="https://github.com/beckettclarke/bterm/releases/latest">Latest release</a>
+        <a href="https://github.com/beckettclarke/bterm/releases">All releases</a>
+        <a href="https://github.com/beckettclarke/homebrew-tap">Homebrew tap</a>
+      </div>
+      <div>
+        <h2 class="label">Source</h2>
+        <a href="https://github.com/beckettclarke/bterm">GitHub</a>
+        <a href="https://github.com/beckettclarke/bterm/issues">Report a bug</a>
+        <a href="https://github.com/beckettclarke/bterm/blob/main/LICENSE">MIT licence</a>
+      </div>
+      <div>
+        <h2 class="label">Built on</h2>
+        <a href="https://github.com/migueldeicaza/SwiftTerm">SwiftTerm</a>
+        <a href="https://developer.apple.com/documentation/appkit">AppKit</a>
+      </div>
+      <div>
+        <h2 class="label">Made by</h2>
+        <a href="https://beckettclarke.ca">Beckett Clarke</a>
+        <a href="https://beckettclarke.ca/#apps">More apps</a>
+        <a href="mailto:hi@beckettclarke.ca">hi@beckettclarke.ca</a>
+      </div>
+    </div>
+
+    <div class="foot-base label">
+      <span>© <span data-year>2026</span> Beckett Clarke</span>
+      <span>Made in Canada</span>
+      <span data-version>v1.0.0</span>
+      <span class="foot-prompt" aria-hidden="true">~ ❯ <span class="caret"></span></span>
+    </div>
+  </div>
+  <div class="foot-mark" aria-hidden="true"><img src="assets/img/icon-512.png" alt="" width="512" height="512"></div>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
