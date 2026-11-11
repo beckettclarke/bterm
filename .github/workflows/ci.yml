@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['site/**', '*.md', '.github/readme/**', '.github/workflows/pages.yml']
+  pull_request:
+    paths-ignore: ['site/**', '*.md', '.github/readme/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (universal)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Cache SwiftTerm and build products
+        uses: actions/cache@v4
+        with:
+          path: |
+            Vendor
+            .build
+          key: swift-${{ runner.os }}-${{ hashFiles('scripts/fetch-swiftterm.sh', 'Package.swift') }}-${{ github.sha }}
+          restore-keys: swift-${{ runner.os }}-${{ hashFiles('scripts/fetch-swiftterm.sh', 'Package.swift') }}-
+
+      - name: Build
+        run: ./build.sh --universal
+
+      - name: Smoke test
+        run: |
+          APP=build/bterm.app
+          lipo -archs "$APP/Contents/MacOS/bterm" | grep -q arm64
+          lipo -archs "$APP/Contents/MacOS/bterm" | grep -q x86_64
+          plutil -lint "$APP/Contents/Info.plist"
+          codesign --verify --deep --strict "$APP"
+
+      - name: Package
+        run: ./scripts/package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bterm-${{ github.sha }}
+          path: |
+            dist/bterm.dmg
+            dist/bterm.zip
+            dist/SHA256SUMS
+          retention-days: 14

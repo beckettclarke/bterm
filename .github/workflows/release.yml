@@ -1,0 +1,125 @@
+name: Release
+
+# Push a tag like v1.2.0 to build, sign (when the Apple secrets are set), publish a GitHub
+# release with bterm.dmg and bterm.zip, and update the Homebrew cask.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    env:
+      HAS_SIGNING: ${{ secrets.MACOS_CERTIFICATE != '' }}
+      HAS_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Version
+        id: v
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing bterm $VERSION"
+
+      - name: Build
+        env:
+          BTERM_VERSION: ${{ steps.v.outputs.version }}
+        run: ./build.sh --universal
+
+      - name: Import signing certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+      - name: Sign and notarize the app
+        if: env.HAS_SIGNING == 'true'
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: ./scripts/notarize.sh app
+
+      - name: Package
+        env:
+          CODESIGN_IDENTITY: ${{ env.HAS_SIGNING == 'true' && secrets.MACOS_SIGNING_IDENTITY || '' }}
+        run: ./scripts/package.sh
+
+      - name: Notarize the disk image
+        if: env.HAS_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ./scripts/notarize.sh dmg
+          (cd dist && shasum -a 256 bterm.zip bterm.dmg > SHA256SUMS)
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          NOTES="$RUNNER_TEMP/notes.md"
+          {
+            echo "**Download:** [bterm.dmg](https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/bterm.dmg) · universal (Apple silicon and Intel) · macOS 13 or later"
+            echo
+            echo '```bash'
+            echo "brew install --cask beckettclarke/tap/bterm"
+            echo '```'
+            echo
+            if [ "$HAS_SIGNING" != "true" ]; then
+              echo "> This build isn't notarized by Apple. If macOS says it can't check bterm for malicious software, open **System Settings → Privacy & Security** and click **Open Anyway**, or run \`xattr -dr com.apple.quarantine /Applications/bterm.app\`. The Homebrew cask does this for you."
+              echo
+            fi
+            echo '<details><summary>SHA-256</summary>'
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+            echo '</details>'
+          } > "$NOTES"
+          PRERELEASE=""
+          case "$VERSION" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/bterm.dmg dist/bterm.zip dist/SHA256SUMS \
+            --title "bterm $VERSION" --notes-file "$NOTES" --generate-notes $PRERELEASE
+
+      - name: Update Homebrew cask
+        if: env.HAS_TAP_TOKEN == 'true' && !contains(steps.v.outputs.version, '-')
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          SHA="$(shasum -a 256 dist/bterm.zip | cut -d' ' -f1)"
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/beckettclarke/homebrew-tap.git" "$RUNNER_TEMP/tap"
+          mkdir -p "$RUNNER_TEMP/tap/Casks"
+          SIGNED="$HAS_SIGNING" ./scripts/cask.sh "$VERSION" "$SHA" > "$RUNNER_TEMP/tap/Casks/bterm.rb"
+          cd "$RUNNER_TEMP/tap"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/bterm.rb
+          git commit -m "bterm $VERSION" || { echo "cask already up to date"; exit 0; }
+          git push
+
+      - name: Homebrew cask not updated
+        if: env.HAS_TAP_TOKEN != 'true'
+        run: |
+          echo "::warning::HOMEBREW_TAP_TOKEN isn't set, so beckettclarke/homebrew-tap wasn't updated. Add a fine-grained token with Contents read/write on that repo as a secret named HOMEBREW_TAP_TOKEN."
