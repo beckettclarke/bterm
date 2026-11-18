@@ -37,8 +37,8 @@ final class TabItemView: NSView {
     private var hovering = false
     private var closeHover = false
     private var tracking: NSTrackingArea?
-    private var dragStartX: CGFloat?
-    private var dragging = false
+    private var dragStart: NSPoint?
+    var dragging = false { didSet { if dragging != oldValue { refresh() } } }
     private var theme = Settings.shared.theme
 
     static let font = NSFont.systemFont(ofSize: 12.5, weight: .medium)
@@ -160,21 +160,27 @@ final class TabItemView: NSView {
             return
         }
         if event.clickCount == 1 { onSelect?() }
-        dragStartX = event.locationInWindow.x
+        dragStart = event.locationInWindow
         dragging = false
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let start = dragStartX else { return }
-        let dx = event.locationInWindow.x - start
-        if !dragging && abs(dx) < 4 { return }
-        if !dragging { dragging = true; refresh() }
+        guard let start = dragStart else { return }
+        let dx = event.locationInWindow.x - start.x
+        if !dragging && hypot(dx, event.locationInWindow.y - start.y) < 4 { return }
+        dragging = true
         onDrag?(event, dx)
     }
 
     override func mouseUp(with event: NSEvent) {
-        if dragging { dragging = false; refresh(); onDragEnd?() }
-        dragStartX = nil
+        if dragging { dragging = false; onDragEnd?() }
+        dragStart = nil
+    }
+
+    /// Ends a drag whose mouse-up will never arrive here (the tab was torn off into its own window).
+    func cancelDrag() {
+        dragging = false
+        dragStart = nil
     }
 
     override func otherMouseUp(with event: NSEvent) {
@@ -292,6 +298,7 @@ final class PaletteTrigger: NSView {
 
     override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
+    override func mouseDown(with event: NSEvent) {}   // don't pass it on to the bar's window drag
     override func mouseUp(with event: NSEvent) { onClick?() }
 }
 
@@ -316,12 +323,18 @@ func drawKbd(_ keys: String, rightEdge: CGFloat, theme: Theme, in rect: NSRect, 
 }
 
 /// The window's top bar: traffic-light gutter, tabs with a sliding indicator, new-tab and palette buttons.
-final class TabBarView: NSView {
+///
+/// It's an NSControl so the window server leaves its mouse-downs to the app. The bar sits under the
+/// transparent titlebar, where the server drags the window itself unless a control is there, using a
+/// region AppKit doesn't refresh as tabs come and go. Empty space starts the window drag in mouseDown.
+final class TabBarView: NSControl {
     var onSelect: ((UUID) -> Void)?
     var onClose: ((UUID) -> Void)?
     var onNew: (() -> Void)?
     var onPalette: (() -> Void)?
     var onReorder: (([UUID]) -> Void)?
+    /// A tab was dragged out of the bar; the CGFloat is the cursor's x offset within the tab.
+    var onTearOff: ((UUID, CGFloat) -> Void)?
 
     var leadingInset: CGFloat = 84 { didSet { needsLayout = true } }
     private(set) var items: [TabItemView] = []
@@ -333,8 +346,12 @@ final class TabBarView: NSView {
     private var theme = Settings.shared.theme
     private var dragOrigin: CGFloat = 0
     private var dragItem: TabItemView?
+    /// A tab from another window hovering over this bar, not yet part of `tabs`.
+    private var preview: TabItemView?
 
     static let height: CGFloat = 40
+    /// How far past the bar's top or bottom edge a tab must be dragged to tear off.
+    static let tearDistance: CGFloat = 24
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -353,7 +370,7 @@ final class TabBarView: NSView {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override var isFlipped: Bool { true }
-    override var mouseDownCanMoveWindow: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     func applyTheme(_ t: Theme, glass: Bool) {
         theme = t
@@ -368,7 +385,7 @@ final class TabBarView: NSView {
     func update(tabs: [TabInfo], selected: UUID?, animated: Bool) {
         let ids = Set(tabs.map(\.id))
         // Removed tabs collapse and fade.
-        for item in items where !ids.contains(item.id) {
+        for item in items where !ids.contains(item.id) && item !== preview {
             animate(0.2, {
                 item.animator().alphaValue = 0
                 var f = item.frame
@@ -382,13 +399,7 @@ final class TabBarView: NSView {
                 if existing.info != info { existing.info = info }
                 next.append(existing)
             } else {
-                let item = TabItemView(info: info)
-                item.applyTheme(theme)
-                item.onSelect = { [weak self] in self?.onSelect?(info.id) }
-                item.onClose = { [weak self] in self?.onClose?(info.id) }
-                item.onDrag = { [weak self, weak item] e, dx in if let item { self?.drag(item, dx: dx) } }
-                item.onDragEnd = { [weak self] in self?.endDrag() }
-                addSubview(item, positioned: .below, relativeTo: addButton)
+                let item = makeItem(info)
                 if animated {
                     // Grow in from the position where it will land.
                     item.alphaValue = 0
@@ -397,10 +408,22 @@ final class TabBarView: NSView {
                 next.append(item)
             }
         }
+        if let preview, let i = items.firstIndex(of: preview) { next.insert(preview, at: min(i, next.count)) }
         items = next
         selectedID = selected
         for item in items { item.selected = item.id == selected }
         relayout(animated: animated)
+    }
+
+    private func makeItem(_ info: TabInfo) -> TabItemView {
+        let item = TabItemView(info: info)
+        item.applyTheme(theme)
+        item.onSelect = { [weak self] in self?.onSelect?(info.id) }
+        item.onClose = { [weak self] in self?.onClose?(info.id) }
+        item.onDrag = { [weak self, weak item] e, dx in if let item { self?.drag(item, event: e, dx: dx) } }
+        item.onDragEnd = { [weak self] in self?.endDrag() }
+        addSubview(item, positioned: .below, relativeTo: addButton)
+        return item
     }
 
     private func insertionX(for id: UUID, in tabs: [TabInfo]) -> CGFloat {
@@ -473,7 +496,24 @@ final class TabBarView: NSView {
 
     // MARK: drag to reorder
 
-    private func drag(_ item: TabItemView, dx: CGFloat) {
+    private func drag(_ item: TabItemView, event: NSEvent, dx: CGFloat) {
+        let p = convert(event.locationInWindow, from: nil)
+        let fullScreen = window?.styleMask.contains(.fullScreen) ?? false
+        // The only tab drags its whole window (unless full screen); any tab dragged clear of the bar tears off.
+        if (items.count == 1 && !fullScreen) || p.y < -TabBarView.tearDistance || p.y > bounds.height + TabBarView.tearDistance {
+            let grabX = p.x - dx - (dragItem == nil ? item.frame.minX : dragOrigin)
+            // The window drag that follows swallows the mouse-up, so finish this drag now.
+            item.cancelDrag()
+            dragItem?.layer?.zPosition = 0
+            dragItem = nil
+            relayout(animated: true)
+            onTearOff?(item.id, grabX)
+            return
+        }
+        move(item, dx: dx)
+    }
+
+    private func move(_ item: TabItemView, dx: CGFloat) {
         if dragItem == nil {
             dragItem = item
             dragOrigin = item.frame.minX
@@ -500,6 +540,47 @@ final class TabBarView: NSView {
         dragItem = nil
         relayout(animated: true)
         onReorder?(items.map(\.id))
+    }
+
+    // MARK: tabs dragged in from another window
+
+    /// Shows (or moves) a placeholder for a tab dragged over this bar from another window.
+    /// `screenX` is the cursor position; `grabX` the cursor's offset within the tab.
+    func showDropPreview(_ info: TabInfo, screenX: CGFloat, grabX: CGFloat) {
+        guard let window else { return }
+        let x = convert(window.convertPoint(fromScreen: NSPoint(x: screenX, y: 0)), from: nil).x
+        if preview == nil {
+            let item = makeItem(info)
+            item.dragging = true
+            item.layer?.zPosition = 5
+            let w = TabItemView.idealWidth(for: info.title)
+            item.frame = NSRect(x: max(leadingInset, x - grabX), y: 6, width: w, height: TabBarView.height - 12)
+            item.alphaValue = 0
+            animate(0.16) { item.animator().alphaValue = 1 }
+            items.insert(item, at: items.filter { $0.frame.midX < x }.count)
+            preview = item
+            dragItem = item
+            dragOrigin = 0
+            relayout(animated: true)
+        }
+        if let preview { move(preview, dx: x - grabX) }
+    }
+
+    /// Removes the placeholder. With `keep`, it stays in place to become the adopted tab's item and its index is returned.
+    @discardableResult
+    func endDropPreview(keep: Bool) -> Int? {
+        guard let item = preview else { return nil }
+        preview = nil
+        dragItem = nil
+        item.layer?.zPosition = 0
+        item.dragging = false
+        let index = items.firstIndex(of: item)
+        if !keep {
+            items.removeAll { $0 === item }
+            animate(0.16, { item.animator().alphaValue = 0 }, completion: { item.removeFromSuperview() })
+            relayout(animated: true)
+        }
+        return index
     }
 
     // MARK: window dragging on empty space

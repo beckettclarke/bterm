@@ -112,7 +112,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     var focusedPane: PaneView? { current?.focused ?? current?.panes.first }
 
-    init(cwd: String?) {
+    /// Opens a window around `tab` (a tab torn off another window), or a fresh shell in `cwd`.
+    init(cwd: String?, tab: TermTab? = nil) {
         let window = BTermWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 620),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -137,13 +138,14 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             guard let self else { return }
             self.tabs.sort { (ids.firstIndex(of: $0.id) ?? 0) < (ids.firstIndex(of: $1.id) ?? 0) }
         }
+        bar.onTearOff = { [weak self] id, grabX in self?.tearOff(id: id, grabX: grabX) }
 
         applySettings(animated: false)
         settingsObserver = NotificationCenter.default.addObserver(
             forName: .btermSettingsChanged, object: nil, queue: .main
         ) { [weak self] _ in self?.applySettings(animated: true) }
 
-        addTab(cwd: cwd, animated: false)
+        if let tab { adopt(tab, at: 0, animated: false) } else { addTab(cwd: cwd, animated: false) }
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in self?.refreshInfo() }
         t.tolerance = 0.4
         RunLoop.main.add(t, forMode: .common)
@@ -257,12 +259,17 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     private func makePane(cwd: String?) -> PaneView {
         let pane = PaneView(cwd: cwd)
+        wire(pane)
+        return pane
+    }
+
+    /// Points a pane's callbacks at this window (again, when its tab moves here from another window).
+    private func wire(_ pane: PaneView) {
         pane.onExit = { [weak self] p in self?.remove(pane: p) }
         pane.onFocus = { [weak self] p in self?.paneDidFocus(p) }
         pane.onChange = { [weak self] _ in self?.refreshSoon() }
         pane.onResize = { [weak self] p, c, r in self?.paneResized(p, cols: c, rows: r) }
         pane.onActivity = { [weak self] p in self?.paneActivity(p) }
-        return pane
     }
 
     private func tab(of pane: PaneView) -> TermTab? {
@@ -474,6 +481,99 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             tab.container.removeFromSuperview()
             refreshInfo()
         }
+    }
+
+    // MARK: moving tabs between windows
+
+    /// Takes a tab out of this window without ending its shells.
+    private func detach(_ tab: TermTab) {
+        guard let i = tabs.firstIndex(where: { $0 === tab }) else { return }
+        tabs.remove(at: i)
+        tab.container.removeFromSuperview()
+        if tab === current {
+            current = nil
+            if !tabs.isEmpty { show(tabs[min(i, tabs.count - 1)], animated: false) }
+        } else {
+            refreshInfo()
+        }
+    }
+
+    private func adopt(_ tab: TermTab, at index: Int, animated: Bool) {
+        for p in tab.panes { wire(p) }
+        tabs.insert(tab, at: min(index, tabs.count))
+        show(tab, animated: animated)
+    }
+
+    /// A tab was dragged out of the tab bar: move it to a new window that follows the cursor,
+    /// or, for the only tab, drag this window along.
+    private func tearOff(id: UUID, grabX: CGFloat) {
+        guard let tab = tabs.first(where: { $0.id == id }), let window else { return }
+        let fullScreen = window.styleMask.contains(.fullScreen)
+        if tabs.count == 1 {
+            if fullScreen { return }
+            let m = NSEvent.mouseLocation
+            followMouse(grab: NSPoint(x: m.x - window.frame.minX, y: window.frame.maxY - m.y))
+            return
+        }
+        detach(tab)
+        let size = fullScreen ? NSSize(width: 980, height: 620) : window.frame.size
+        let c = TerminalWindowController(cwd: nil, tab: tab)
+        TerminalWindowController.all.append(c)
+        guard let w = c.window else { return }
+        w.setFrame(NSRect(origin: window.frame.origin, size: size), display: false)
+        w.setFrameAutosaveName("")
+        c.layoutTrafficLights()
+        // Put the window under the cursor so the cursor holds the tab where it grabbed it.
+        let grab = NSPoint(x: c.root.tabBar.leadingInset + grabX, y: TabBarView.height / 2)
+        let m = NSEvent.mouseLocation
+        w.setFrameTopLeftPoint(NSPoint(x: m.x - grab.x, y: m.y + grab.y))
+        w.makeKeyAndOrderFront(nil)
+        c.focus(c.focusedPane)
+        c.followMouse(grab: grab)
+    }
+
+    /// Moves this window with the cursor until the mouse is released (`grab` is the cursor's offset
+    /// from the window's top-left). Hovering another window's tab bar previews the tab there,
+    /// and releasing over it moves the tab into that window.
+    private func followMouse(grab: NSPoint) {
+        guard let window, let tab = tabs.first, tabs.count == 1 else { return }
+        let info = TabInfo(id: tab.id, title: (tab.focused ?? tab.panes.first)?.shortTitle ?? "shell", state: .idle)
+        let grabX = grab.x - root.tabBar.leadingInset
+        var target: TerminalWindowController?
+        while let e = NSApp.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: .distantFuture,
+                                      inMode: .eventTracking, dequeue: true) {
+            if e.type == .leftMouseUp { break }
+            let m = NSEvent.mouseLocation
+            window.setFrameTopLeftPoint(NSPoint(x: m.x - grab.x, y: m.y + grab.y))
+            let hit = dropTarget(at: m)
+            if hit !== target {
+                target?.root.tabBar.endDropPreview(keep: false)
+                target = hit
+                // Like Chrome, the window vanishes while its tab sits in another window's bar.
+                window.alphaValue = hit == nil ? 1 : 0
+            }
+            target?.root.tabBar.showDropPreview(info, screenX: m.x, grabX: grabX)
+        }
+        guard let target, let index = target.root.tabBar.endDropPreview(keep: true) else {
+            window.alphaValue = 1
+            return
+        }
+        detach(tab)
+        target.adopt(tab, at: index, animated: true)
+        target.window?.makeKeyAndOrderFront(nil)
+        closingConfirmed = true
+        window.close()
+    }
+
+    /// The other terminal window whose tab bar is under `point` (screen coordinates), if any.
+    private func dropTarget(at point: NSPoint) -> TerminalWindowController? {
+        guard let window else { return nil }
+        let number = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: window.windowNumber)
+        guard let c = TerminalWindowController.all.first(where: { $0 !== self && $0.window?.windowNumber == number }),
+              let w = c.window, !w.isMiniaturized else { return nil }
+        let bar = c.root.tabBar
+        let p = bar.convert(w.convertPoint(fromScreen: point), from: nil)
+        return bar.bounds.insetBy(dx: 0, dy: -8).contains(p) ? c : nil
     }
 
     // MARK: info refresh
