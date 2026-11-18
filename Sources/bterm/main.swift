@@ -1,4 +1,12 @@
 import AppKit
+import Flint
+
+extension Updater {
+    static let app = Updater(
+        source: GitHubSource("beckettclarke/bterm", assetPattern: "bterm.zip"),
+        channels: [.nightly]
+    )
+}
 
 enum AppInfo {
     static var version: String {
@@ -8,6 +16,7 @@ enum AppInfo {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Updater.app.start()
         NSApp.mainMenu = buildMenu()
         let first = openWindow(cwd: nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -134,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
     }
 
+    @MainActor
     private func buildMenu() -> NSMenu {
         let main = NSMenu()
 
@@ -158,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         _ = menu("bterm", [
             item("About bterm", #selector(showAbout(_:)), ""),
+            Updater.app.makeMenuItem(),
             .separator(),
             item("Settings…", #selector(showSettings(_:)), ",", C),
             .separator(),

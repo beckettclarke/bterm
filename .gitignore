@@ -3,5 +3,6 @@ build/
 dist/
 *.app
 .swiftpm/
-Vendor/
+Vendor/*
+!Vendor/Flint/
 .DS_Store

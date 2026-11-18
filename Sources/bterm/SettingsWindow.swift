@@ -1,4 +1,5 @@
 import AppKit
+import Flint
 
 // MARK: - small AppKit helpers
 
@@ -50,7 +51,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
              "Typeface and size used in every terminal.",
              "Caret shape and the animations around it.",
              "Keyboard behaviour and rendering.",
-             "Version and credits."][rawValue]
+             "Version, update channel and credits."][rawValue]
         }
         var symbol: String {
             ["paintpalette", "textformat", "cursorarrow.motionlines", "keyboard", "info.circle"][rawValue]
@@ -284,7 +285,24 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func buildAbout(_ page: SettingsPage) {
+        page.section("Updates")
+        let updates = SettingsCard(theme: page.theme)
+        let channels = Updater.app.channels
+        let channel = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 150, height: 26), pullsDown: false)
+        for item in channels { channel.addItem(withTitle: item.title) }
+        channel.selectItem(withTitle: Updater.app.channel.title)
+        channel.target = self
+        channel.action = #selector(updateChannelChanged(_:))
+        updates.addRow(title: "Update channel", detail: "Stable releases or nightly builds.", control: channel)
+        page.add(updates, height: updates.height)
+
         page.add(AboutView(theme: page.theme), height: 260)
+    }
+
+    @objc private func updateChannelChanged(_ sender: NSPopUpButton) {
+        let channels = Updater.app.channels
+        guard channels.indices.contains(sender.indexOfSelectedItem) else { return }
+        Updater.app.channel = channels[sender.indexOfSelectedItem]
     }
 
     private func toggle(_ kp: ReferenceWritableKeyPath<Settings, Bool>) -> NSView {

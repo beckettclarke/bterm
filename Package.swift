@@ -5,12 +5,16 @@ let package = Package(
     name: "bterm",
     platforms: [.macOS(.v13)],
     dependencies: [
+        .package(path: "Vendor/Flint"),
         .package(path: "Vendor/SwiftTerm"),
     ],
     targets: [
         .executableTarget(
             name: "bterm",
-            dependencies: [.product(name: "SwiftTerm", package: "SwiftTerm")],
+            dependencies: [
+                .product(name: "Flint", package: "Flint"),
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ],
             path: "Sources/bterm"
         ),
     ]
