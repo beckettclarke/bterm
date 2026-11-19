@@ -79,7 +79,13 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
         run: |
           NOTES="$RUNNER_TEMP/notes.md"
+          # This version's section of CHANGELOG.md, without its heading.
+          CHANGES="$(awk -v v="$VERSION" '/^## / { p = ($2 == v); next } p' CHANGELOG.md | sed '/./,$!d')"
           {
+            if [ -n "$CHANGES" ]; then
+              echo "$CHANGES"
+              echo
+            fi
             echo "**Download:** [bterm.dmg](https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/bterm.dmg) · universal (Apple silicon and Intel) · macOS 13 or later"
             echo
             echo '```bash'
