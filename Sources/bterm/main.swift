@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Updater.app.start()
         NSApp.mainMenu = buildMenu()
-        let first = openWindow(cwd: nil)
+        let first = restoreSession() ?? openWindow(cwd: nil)
         NSApp.activate(ignoringOtherApps: true)
 
         // Development hooks: BTERM_SLOWMO=10 slows every animation, BTERM_RUN types into the first pane.
@@ -80,6 +80,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         outCtx.fill(bounds)
         if let image = layers.cgImage { outCtx.draw(image, in: bounds) }
         try? out.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+    }
+
+    /// Reopens the windows open at last quit; returns the frontmost, or nil when there's nothing to restore.
+    private func restoreSession() -> TerminalWindowController? {
+        guard let session = Session.take(), !session.windows.isEmpty else { return nil }
+        var front: TerminalWindowController?
+        for saved in session.windows {
+            let c = TerminalWindowController(cwd: nil, restoring: saved, marker: session.marker)
+            TerminalWindowController.all.append(c)
+            let frame = NSRectFromString(saved.frame)
+            let onScreen = NSScreen.screens.contains { $0.visibleFrame.intersects(frame) }
+            c.present(cascadeFrom: front?.window, frame: onScreen && frame.width > 0 ? frame : nil)
+            front = c
+        }
+        return front
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        Session.save()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -182,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = menu("Shell", [
             item("New Window", #selector(newWindow(_:)), "n"),
             item("New Tab", #selector(TerminalWindowController.newTab(_:)), "t"),
+            item("Rename Tab…", #selector(TerminalWindowController.renameTab(_:))),
             .separator(),
             item("Split Right", #selector(TerminalWindowController.splitRight(_:)), "d"),
             item("Split Down", #selector(TerminalWindowController.splitDown(_:)), "d", CS),

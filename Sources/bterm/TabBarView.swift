@@ -20,7 +20,7 @@ func animate(_ duration: TimeInterval = 0.28, _ changes: () -> Void, completion:
 }
 
 /// A single tab, built from layers so hover, state and position changes animate for free.
-final class TabItemView: NSView {
+final class TabItemView: NSView, NSTextFieldDelegate {
     let id: UUID
     var info: TabInfo { didSet { refresh() } }
     var selected = false { didSet { refresh() } }
@@ -28,6 +28,9 @@ final class TabItemView: NSView {
     var onClose: (() -> Void)?
     var onDrag: ((NSEvent, CGFloat) -> Void)?
     var onDragEnd: (() -> Void)?
+    /// Rename finished: the new name, or nil when cancelled.
+    var onRename: ((String?) -> Void)?
+    var onMenu: (() -> NSMenu?)?
 
     private let pill = CALayer()
     private let dot = CALayer()
@@ -38,6 +41,7 @@ final class TabItemView: NSView {
     private var closeHover = false
     private var tracking: NSTrackingArea?
     private var dragStart: NSPoint?
+    private var renameField: NSTextField?
     var dragging = false { didSet { if dragging != oldValue { refresh() } } }
     private var theme = Settings.shared.theme
 
@@ -93,6 +97,10 @@ final class TabItemView: NSView {
         let textH = ceil(TabItemView.font.ascender - TabItemView.font.descender) + 1
         label.frame = NSRect(x: 28, y: (h - textH) / 2 - 1, width: max(0, bounds.width - 28 - 30), height: textH)
         closeBg.frame = closeRect
+        if let renameField {
+            let fh = renameField.intrinsicContentSize.height
+            renameField.frame = NSRect(x: 24, y: (h - fh) / 2, width: max(0, bounds.width - 24 - 8), height: fh)
+        }
         let c = closeRect.insetBy(dx: 5.5, dy: 5.5)
         let p = CGMutablePath()
         p.move(to: CGPoint(x: c.minX, y: c.minY)); p.addLine(to: CGPoint(x: c.maxX, y: c.maxY))
@@ -107,10 +115,14 @@ final class TabItemView: NSView {
 
     private func refresh() {
         let fg = selected || hovering ? theme.fgColor : theme.mutedColor
+        let renaming = renameField != nil
         label.string = info.title
         label.foregroundColor = fg.cgColor
-        pill.backgroundColor = (hovering || dragging ? theme.hoverColor : .clear).cgColor
-        let showClose = hovering || selected
+        label.opacity = renaming ? 0 : 1
+        pill.backgroundColor = (hovering || dragging || renaming ? theme.hoverColor : .clear).cgColor
+        pill.borderColor = theme.accentColor.cgColor
+        pill.borderWidth = renaming ? 1 : 0
+        let showClose = (hovering || selected) && !renaming
         closeX.strokeColor = (closeHover ? theme.fgColor : theme.mutedColor).cgColor
         closeX.opacity = showClose ? 1 : 0
         closeBg.backgroundColor = (closeHover ? theme.borderColor : .clear).cgColor
@@ -155,11 +167,15 @@ final class TabItemView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let p = convert(event.locationInWindow, from: nil)
-        if closeRect.contains(p) && (hovering || selected) {
+        if closeRect.contains(p) && (hovering || selected) && renameField == nil {
             onClose?()
             return
         }
         if event.clickCount == 1 { onSelect?() }
+        if event.clickCount == 2 {
+            beginRename()
+            return
+        }
         dragStart = event.locationInWindow
         dragging = false
     }
@@ -185,6 +201,50 @@ final class TabItemView: NSView {
 
     override func otherMouseUp(with event: NSEvent) {
         if event.buttonNumber == 2 { onClose?() }   // middle-click closes
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? { onMenu?() }
+
+    // MARK: rename
+
+    /// Swaps the label for an inline text field. Return commits, Escape cancels, and an empty name
+    /// goes back to the automatic title.
+    func beginRename() {
+        guard renameField == nil, let window else { return }
+        let field = NSTextField(string: info.title)
+        field.font = TabItemView.font
+        field.textColor = theme.fgColor
+        field.isBordered = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.usesSingleLineMode = true
+        field.lineBreakMode = .byClipping
+        field.cell?.isScrollable = true
+        field.delegate = self
+        renameField = field
+        addSubview(field)
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+        refresh()
+        window.makeFirstResponder(field)
+        field.currentEditor()?.selectAll(nil)
+    }
+
+    private func endRename(commit: Bool) {
+        guard let field = renameField else { return }
+        renameField = nil
+        let name = field.stringValue
+        field.removeFromSuperview()
+        refresh()
+        onRename?(commit ? name : nil)
+    }
+
+    func controlTextDidEndEditing(_ obj: Notification) { endRename(commit: true) }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+        guard sel == #selector(cancelOperation(_:)) else { return false }
+        endRename(commit: false)
+        return true
     }
 }
 
@@ -335,6 +395,9 @@ final class TabBarView: NSControl {
     var onReorder: (([UUID]) -> Void)?
     /// A tab was dragged out of the bar; the CGFloat is the cursor's x offset within the tab.
     var onTearOff: ((UUID, CGFloat) -> Void)?
+    var onRename: ((UUID, String?) -> Void)?
+    /// The right-click menu for a tab.
+    var menuForTab: ((UUID) -> NSMenu?)?
 
     var leadingInset: CGFloat = 84 { didSet { needsLayout = true } }
     private(set) var items: [TabItemView] = []
@@ -422,6 +485,8 @@ final class TabBarView: NSControl {
         item.onClose = { [weak self] in self?.onClose?(info.id) }
         item.onDrag = { [weak self, weak item] e, dx in if let item { self?.drag(item, event: e, dx: dx) } }
         item.onDragEnd = { [weak self] in self?.endDrag() }
+        item.onRename = { [weak self] name in self?.onRename?(info.id, name) }
+        item.onMenu = { [weak self] in self?.menuForTab?(info.id) }
         addSubview(item, positioned: .below, relativeTo: addButton)
         return item
     }
@@ -492,6 +557,10 @@ final class TabBarView: NSControl {
         CATransaction.commit()
         trigger.frame = NSRect(x: bounds.width - 152, y: 8, width: 140, height: 24)
         relayout(animated: false)
+    }
+
+    func beginRename(id: UUID) {
+        items.first { $0.id == id }?.beginRename()
     }
 
     // MARK: drag to reorder

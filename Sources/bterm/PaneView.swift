@@ -27,7 +27,8 @@ final class PaneView: NSView, LocalProcessTerminalViewDelegate {
 
     static let inset = NSEdgeInsets(top: 10, left: 14, bottom: 4, right: 4)
 
-    init(cwd: String?) {
+    /// `scrollback` is a previous session's output (see `BTermView.savedScrollback`), shown above the new prompt.
+    init(cwd: String?, scrollback: String? = nil) {
         term = BTermView(font: Settings.shared.font)
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
         wantsLayer = true
@@ -50,6 +51,7 @@ final class PaneView: NSView, LocalProcessTerminalViewDelegate {
         term.onScroll = { [weak self] _ in self?.updateThumb() }
         term.onDropHighlight = { [weak self] on in self?.setRing(visible: on, color: self?.theme.accentColor) }
         applySettings()
+        if let scrollback { term.feed(text: scrollback) }
         start(cwd: cwd)
     }
 
@@ -252,14 +254,40 @@ final class PaneSplitView: NSSplitView {
     override var dividerThickness: CGFloat { 1 }
     override var dividerColor: NSColor { lineColor }
 
+    /// Divider positions to apply once the split has a size (a restored split).
+    var pendingFractions: [CGFloat]? { didSet { needsLayout = true } }
+
+    private var length: CGFloat { isVertical ? bounds.width : bounds.height }
+
+    /// Each pane's share of the space between dividers.
+    var fractions: [CGFloat] {
+        let space = length - CGFloat(arrangedSubviews.count - 1) * dividerThickness
+        guard space > 0 else { return arrangedSubviews.map { _ in 1 / CGFloat(arrangedSubviews.count) } }
+        return arrangedSubviews.map { (isVertical ? $0.frame.width : $0.frame.height) / space }
+    }
+
+    override func layout() {
+        super.layout()
+        if let f = pendingFractions, length > 0 {
+            pendingFractions = nil
+            setFractions(f)
+        }
+    }
+
     func equalize() {
         layoutSubtreeIfNeeded()
+        setFractions(arrangedSubviews.map { _ in 1 })
+    }
+
+    private func setFractions(_ shares: [CGFloat]) {
         let views = arrangedSubviews
-        guard views.count > 1 else { return }
-        let total = isVertical ? bounds.width : bounds.height
-        let share = (total - CGFloat(views.count - 1) * dividerThickness) / CGFloat(views.count)
+        guard views.count > 1, shares.count == views.count else { return }
+        let space = length - CGFloat(views.count - 1) * dividerThickness
+        let sum = shares.reduce(0, +)
+        var pos: CGFloat = 0
         for i in 0..<(views.count - 1) {
-            setPosition(share * CGFloat(i + 1) + dividerThickness * CGFloat(i), ofDividerAt: i)
+            pos += space * shares[i] / sum
+            setPosition(pos + dividerThickness * CGFloat(i), ofDividerAt: i)
         }
     }
 }

@@ -6,7 +6,10 @@ final class TermTab {
     let container = TabContainerView()
     weak var focused: PaneView?
     var hasActivity = false
+    /// Set by renaming the tab; otherwise the title follows the focused pane.
+    var customTitle: String?
     var panes: [PaneView] { container.panes }
+    var title: String { customTitle ?? (focused ?? panes.first)?.shortTitle ?? "shell" }
 }
 
 final class TabContainerView: NSView {
@@ -112,8 +115,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     var focusedPane: PaneView? { current?.focused ?? current?.panes.first }
 
-    /// Opens a window around `tab` (a tab torn off another window), or a fresh shell in `cwd`.
-    init(cwd: String?, tab: TermTab? = nil) {
+    /// Opens a window around `tab` (a tab torn off another window), the tabs of a saved session,
+    /// or a fresh shell in `cwd`.
+    init(cwd: String?, tab: TermTab? = nil, restoring saved: SavedWindow? = nil, marker: String = "") {
         let window = BTermWindow(contentRect: NSRect(x: 0, y: 0, width: 980, height: 620),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -139,13 +143,21 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             self.tabs.sort { (ids.firstIndex(of: $0.id) ?? 0) < (ids.firstIndex(of: $1.id) ?? 0) }
         }
         bar.onTearOff = { [weak self] id, grabX in self?.tearOff(id: id, grabX: grabX) }
+        bar.onRename = { [weak self] id, name in self?.renamed(id: id, to: name) }
+        bar.menuForTab = { [weak self] id in self?.menu(forTab: id) }
 
         applySettings(animated: false)
         settingsObserver = NotificationCenter.default.addObserver(
             forName: .btermSettingsChanged, object: nil, queue: .main
         ) { [weak self] _ in self?.applySettings(animated: true) }
 
-        if let tab { adopt(tab, at: 0, animated: false) } else { addTab(cwd: cwd, animated: false) }
+        if let tab {
+            adopt(tab, at: 0, animated: false)
+        } else if let saved {
+            restore(saved, marker: marker)
+        } else {
+            addTab(cwd: cwd, animated: false)
+        }
         let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in self?.refreshInfo() }
         t.tolerance = 0.4
         RunLoop.main.add(t, forMode: .common)
@@ -160,9 +172,12 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: window
 
-    func present(cascadeFrom other: NSWindow?) {
+    /// Shows the window cascaded from `other`, at a restored `frame`, or where the main window was last.
+    func present(cascadeFrom other: NSWindow?, frame: NSRect? = nil) {
         guard let window else { return }
-        if let other {
+        if let frame {
+            window.setFrame(frame, display: false)
+        } else if let other {
             let f = other.frame
             window.setFrame(NSRect(x: f.minX + 28, y: f.minY - 28, width: f.width, height: f.height), display: false)
         } else if !window.setFrameUsingName("bterm.main") {
@@ -257,8 +272,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: panes
 
-    private func makePane(cwd: String?) -> PaneView {
-        let pane = PaneView(cwd: cwd)
+    private func makePane(cwd: String?, scrollback: String? = nil) -> PaneView {
+        let pane = PaneView(cwd: cwd, scrollback: scrollback)
         wire(pane)
         return pane
     }
@@ -389,12 +404,13 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: tabs
 
-    func addTab(cwd: String?, animated: Bool) {
+    /// Opens a shell in a new tab right after `after` (by default the current tab).
+    func addTab(cwd: String?, after: TermTab? = nil, animated: Bool) {
         let tab = TermTab()
         let pane = makePane(cwd: cwd)
         tab.container.root = pane
         tab.focused = pane
-        let at = current.flatMap { c in tabs.firstIndex { $0 === c } }.map { $0 + 1 } ?? tabs.count
+        let at = (after ?? current).flatMap { c in tabs.firstIndex { $0 === c } }.map { $0 + 1 } ?? tabs.count
         tabs.insert(tab, at: at)
         show(tab, animated: animated)
         if animated { pane.appear() }
@@ -483,6 +499,67 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// Closes several tabs, asking once if any are running something.
+    func closeTabs(_ ids: [UUID]) {
+        let targets = tabs.filter { ids.contains($0.id) }
+        guard !targets.isEmpty else { return }
+        let busy = targets.flatMap(\.panes).filter { $0.term.isRunningCommand && !$0.exited }
+        let close = { [weak self] in for t in targets { self?.closeTab(id: t.id, confirmed: true) } }
+        if busy.isEmpty { close() } else { confirm(busy: busy, message: "Close \(targets.count) tabs?", then: close) }
+    }
+
+    // MARK: tab menu and renaming
+
+    private func menu(forTab id: UUID) -> NSMenu? {
+        guard let i = tabs.firstIndex(where: { $0.id == id }) else { return nil }
+        let tab = tabs[i]
+        let others = tabs.filter { $0 !== tab }.map(\.id)
+        let right = tabs[(i + 1)...].map(\.id)
+        let m = NSMenu()
+        m.autoenablesItems = false
+        m.addItem(ActionMenuItem("Rename Tab…", symbol: "pencil") { [weak self] in self?.beginRename(id) })
+        if tab.customTitle != nil {
+            m.addItem(ActionMenuItem("Reset Title", symbol: "arrow.uturn.backward") { [weak self] in
+                self?.renamed(id: id, to: "")
+            })
+        }
+        m.addItem(.separator())
+        m.addItem(ActionMenuItem("Duplicate Tab", symbol: "plus.square.on.square") { [weak self] in
+            self?.addTab(cwd: (tab.focused ?? tab.panes.first)?.directory, after: tab, animated: true)
+        })
+        m.addItem(ActionMenuItem("Move to New Window", symbol: "macwindow.badge.plus", enabled: tabs.count > 1) { [weak self] in
+            self?.moveToNewWindow(id: id)
+        })
+        m.addItem(.separator())
+        m.addItem(ActionMenuItem("Close Tab", symbol: "xmark") { [weak self] in self?.closeTab(id: id) })
+        m.addItem(ActionMenuItem("Close Other Tabs", symbol: "xmark.square", enabled: !others.isEmpty) { [weak self] in
+            self?.closeTabs(others)
+        })
+        m.addItem(ActionMenuItem("Close Tabs to the Right", symbol: "arrow.right.to.line", enabled: !right.isEmpty) { [weak self] in
+            self?.closeTabs(right)
+        })
+        return m
+    }
+
+    private func beginRename(_ id: UUID) {
+        select(id: id)
+        root.tabBar.beginRename(id: id)
+    }
+
+    /// A rename ended: `name` is nil when cancelled, and an empty name resets to the automatic title.
+    private func renamed(id: UUID, to name: String?) {
+        if let name, let tab = tabs.first(where: { $0.id == id }) {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            tab.customTitle = trimmed.isEmpty ? nil : trimmed
+            refreshInfo()
+        }
+        // Give the keyboard back to the shell, unless the click that ended editing went to a pane.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !(self.window?.firstResponder is BTermView) else { return }
+            self.focus(self.focusedPane)
+        }
+    }
+
     // MARK: moving tabs between windows
 
     /// Takes a tab out of this window without ending its shells.
@@ -532,12 +609,24 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         c.followMouse(grab: grab)
     }
 
+    private func moveToNewWindow(id: UUID) {
+        guard tabs.count > 1, let tab = tabs.first(where: { $0.id == id }), let window else { return }
+        detach(tab)
+        let c = TerminalWindowController(cwd: nil, tab: tab)
+        TerminalWindowController.all.append(c)
+        if window.styleMask.contains(.fullScreen) {
+            c.present(cascadeFrom: nil)
+        } else {
+            c.present(cascadeFrom: window)
+        }
+    }
+
     /// Moves this window with the cursor until the mouse is released (`grab` is the cursor's offset
     /// from the window's top-left). Hovering another window's tab bar previews the tab there,
     /// and releasing over it moves the tab into that window.
     private func followMouse(grab: NSPoint) {
         guard let window, let tab = tabs.first, tabs.count == 1 else { return }
-        let info = TabInfo(id: tab.id, title: (tab.focused ?? tab.panes.first)?.shortTitle ?? "shell", state: .idle)
+        let info = TabInfo(id: tab.id, title: tab.title, state: .idle)
         let grabX = grab.x - root.tabBar.leadingInset
         var target: TerminalWindowController?
         while let e = NSApp.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: .distantFuture,
@@ -589,10 +678,9 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     func refreshInfo(animated: Bool = true) {
         let infos = tabs.map { tab -> TabInfo in
-            let p = tab.focused ?? tab.panes.first
             let running = tab.panes.contains { $0.isBusy }
             let state: TabState = running ? .running : (tab.hasActivity && tab !== current ? .activity : .idle)
-            return TabInfo(id: tab.id, title: p?.shortTitle ?? "shell", state: state)
+            return TabInfo(id: tab.id, title: tab.title, state: state)
         }
         root.tabBar.update(tabs: infos, selected: current?.id, animated: animated)
 
@@ -701,6 +789,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         var list: [Command] = [
             Command(title: "New Tab", group: "Shell", symbol: "plus.square.on.square", shortcut: "⌘T") { [weak self] in self?.newTab(nil) },
             Command(title: "Open Settings…", group: "Settings", symbol: "gearshape", shortcut: "⌘,") { SettingsWindowController.shared.show() },
+            Command(title: "Rename Tab…", group: "Shell", symbol: "pencil") { [weak self] in self?.renameTab(nil) },
             Command(title: "New Window", group: "Shell", symbol: "macwindow.badge.plus", shortcut: "⌘N") { (NSApp.delegate as? AppDelegate)?.newWindow(nil) },
             Command(title: "Split Right", group: "Pane", symbol: "rectangle.split.2x1", shortcut: "⌘D") { [weak self] in self?.split(vertical: true) },
             Command(title: "Split Down", group: "Pane", symbol: "rectangle.split.1x2", shortcut: "⇧⌘D") { [weak self] in self?.split(vertical: false) },
@@ -742,6 +831,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             ("Cursor Glide", "cursorarrow.motionlines", \.cursorGlide),
             ("Option as Meta Key", "option", \.optionAsMeta),
             ("GPU Renderer (Metal)", "cpu", \.gpu),
+            ("Restore Session at Launch", "clock.arrow.circlepath", \.restoreSession),
         ]
         for (title, symbol, kp) in toggles {
             list.append(Command(title: title, group: "Settings", symbol: symbol, checked: s[keyPath: kp]) { [weak self] in
@@ -774,6 +864,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
     @objc func paneDown(_ sender: Any?) { movePaneFocus(dx: 0, dy: 1) }
     @objc func selectTabByTag(_ sender: NSMenuItem) { selectTab(index: sender.tag - 1) }
     @objc func clearBuffer(_ sender: Any?) { focusedPane?.term.clearBuffer() }
+    @objc func renameTab(_ sender: Any?) { if let id = current?.id { beginRename(id) } }
 
     @objc func closePane(_ sender: Any?) {
         guard let pane = focusedPane else { return }
@@ -792,4 +883,72 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
         Settings.shared.fontSize = size
         showToast("\(Settings.shared.displayFontName) · \(Int(Settings.shared.fontSize))pt", symbol: "textformat.size")
     }
+}
+
+// MARK: session save and restore
+
+extension TerminalWindowController {
+    func saved() -> SavedWindow? {
+        guard let window, !tabs.isEmpty else { return nil }
+        let selected = current.flatMap { c in tabs.firstIndex { $0 === c } } ?? 0
+        return SavedWindow(frame: NSStringFromRect(window.frame), selected: selected, tabs: tabs.map { tab in
+            SavedTab(title: tab.customTitle,
+                     focused: tab.focused.flatMap { tab.panes.firstIndex(of: $0) } ?? 0,
+                     root: Self.save(tab.container.root))
+        })
+    }
+
+    private static func save(_ view: NSView?) -> SavedNode {
+        if let split = view as? PaneSplitView {
+            return .split(vertical: split.isVertical, fractions: split.fractions.map(Double.init),
+                          children: split.arrangedSubviews.map(save))
+        }
+        let pane = view as? PaneView
+        return .pane(cwd: pane?.directory, scrollback: pane?.term.savedScrollback())
+    }
+
+    fileprivate func restore(_ saved: SavedWindow, marker: String) {
+        for s in saved.tabs {
+            let tab = TermTab()
+            tab.customTitle = s.title
+            tab.container.root = build(s.root, marker: marker)
+            let panes = tab.panes
+            guard !panes.isEmpty else { continue }
+            tab.focused = panes.indices.contains(s.focused) ? panes[s.focused] : panes.first
+            tabs.append(tab)
+        }
+        if tabs.isEmpty { return addTab(cwd: nil, animated: false) }
+        show(tabs[min(max(saved.selected, 0), tabs.count - 1)], animated: false)
+    }
+
+    private func build(_ node: SavedNode, marker: String) -> NSView {
+        switch node {
+        case .pane(let cwd, let scrollback):
+            return makePane(cwd: cwd, scrollback: scrollback.map { $0 + marker })
+        case .split(let vertical, let fractions, let children):
+            let split = PaneSplitView()
+            split.isVertical = vertical
+            split.lineColor = Settings.shared.theme.borderColor
+            for child in children { split.addArrangedSubview(build(child, marker: marker)) }
+            split.pendingFractions = fractions.map { CGFloat($0) }
+            return split
+        }
+    }
+}
+
+/// A menu item that runs a closure, with an SF Symbol icon.
+final class ActionMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, symbol: String, enabled: Bool = true, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
+        image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        isEnabled = enabled
+    }
+
+    required init(coder: NSCoder) { fatalError("not used") }
+
+    @objc private func run() { handler() }
 }

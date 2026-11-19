@@ -54,7 +54,8 @@ cd bterm
 </table>
 
 - **Full xterm emulation** through [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm): 256 colour and truecolor, mouse reporting, the alternate screen for vim, htop and tmux, bracketed paste, OSC 8 hyperlinks, the Kitty keyboard and graphics protocols, Sixel, IME and wide characters.
-- **Tabs and splits.** New tabs and windows open in the folder you're in. Split right or down as often as you like, move between panes with <kbd>⌥⌘</kbd> and the arrow keys, and drag tabs to reorder them.
+- **Tabs and splits.** New tabs and windows open in the folder you're in. Split right or down as often as you like, move between panes with <kbd>⌥⌘</kbd> and the arrow keys, and drag tabs to reorder them. Double-click a tab to rename it, or right-click it for rename, duplicate, move to a new window and close options.
+- **Picks up where you left off.** Quitting saves every window, tab, split and folder, plus each pane's scrollback with its colours, and they come back at the next launch. Turn it off under Settings → Advanced.
 - **A status bar that needs no setup.** The running process, the folder and the git branch come straight from the kernel (the pty's foreground process group, then `proc_pidinfo`). There's no shell integration to install.
 - **Drag and drop.** Drop a file on a pane to paste its escaped path. Drop a folder on the Dock icon, or run `open -a bterm ~/some/folder`, to open a window there.
 - **Any monospace font** you have installed, from SF Mono to Geist Mono, JetBrains Mono, Berkeley Mono and Fira Code.
@@ -120,7 +121,8 @@ bterm/
 │   ├── TerminalWindowController.swift  window, tabs, split tree, palette commands, overlays
 │   ├── PaneView.swift                  one shell session, focus/bell/drop overlays, split view
 │   ├── BTermView.swift                 SwiftTerm view subclass: smooth scroll, caret glide, drops
-│   ├── TabBarView.swift                layer-built tabs, sliding indicator, drag to reorder
+│   ├── TabBarView.swift                layer-built tabs, sliding indicator, drag to reorder, rename
+│   ├── Session.swift                   saving and restoring windows, tabs and scrollback
 │   ├── StatusBarView.swift             process · folder · git branch · grid size
 │   ├── CommandPalette.swift            fuzzy command menu
 │   ├── SettingsWindow.swift            sidebar, theme cards, live font preview
