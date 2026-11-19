@@ -66,6 +66,12 @@ final class BTermView: LocalProcessTerminalView {
     }
 
     var foregroundName: String? { ProcInfo.name(of: foregroundPid) }
+
+    func savedCommand() -> String? {
+        guard Settings.shared.rerunCommands, terminal!.isCurrentBufferAlternate, isRunningCommand else { return nil }
+        return ProcInfo.commandLine(of: foregroundPid)
+    }
+
     var currentDirectory: String? { ProcInfo.cwd(of: foregroundPid) ?? ProcInfo.cwd(of: process.shellPid) }
     var isRunningCommand: Bool {
         let fg = foregroundPid

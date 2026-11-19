@@ -50,6 +50,7 @@ final class Settings {
     var gpu: Bool { get { bool("gpu", false) } set { set("gpu", newValue) } }
     /// Reopen last session's windows, tabs and scrollback at launch.
     var restoreSession: Bool { get { bool("restoreSession", true) } set { set("restoreSession", newValue) } }
+    var rerunCommands: Bool { get { bool("rerunCommands", false) } set { set("rerunCommands", newValue) } }
 
     /// Monospaced families offered in the palette; only installed ones are listed.
     static let fontCandidates = ["SF Mono", "Geist Mono", "JetBrains Mono", "Berkeley Mono",
@@ -72,7 +73,7 @@ final class Settings {
     var displayFontName: String { fontName.isEmpty ? "SF Mono" : fontName }
 
     func resetAll() {
-        for k in ["theme", "fontSize", "fontName", "cursor", "glass", "smoothScroll", "cursorGlide", "optionAsMeta", "gpu", "restoreSession"] {
+        for k in ["theme", "fontSize", "fontName", "cursor", "glass", "smoothScroll", "cursorGlide", "optionAsMeta", "gpu", "restoreSession", "rerunCommands"] {
             d.removeObject(forKey: k)
         }
         notify()

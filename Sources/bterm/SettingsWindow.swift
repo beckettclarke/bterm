@@ -271,6 +271,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let card = SettingsCard(theme: t)
         card.addRow(title: "Restore session", detail: "Reopen windows, tabs and scrollback from last time.",
                     control: toggle(\.restoreSession))
+        card.addRow(title: "Rerun full-screen commands", detail: "Restart CLIs like Claude when their session is restored.",
+                    control: toggle(\.rerunCommands))
         card.addRow(title: "Option as Meta", detail: "Send Esc-prefixed keys; turn off to type ⌥ characters.",
                     control: toggle(\.optionAsMeta))
         card.addRow(title: "GPU renderer", detail: "Metal rendering for heavy output. Disables cursor glide.",

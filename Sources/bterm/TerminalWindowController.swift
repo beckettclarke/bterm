@@ -266,8 +266,8 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: panes
 
-    private func makePane(cwd: String?, scrollback: String? = nil) -> PaneView {
-        let pane = PaneView(cwd: cwd, scrollback: scrollback)
+    private func makePane(cwd: String?, scrollback: String? = nil, command: String? = nil) -> PaneView {
+        let pane = PaneView(cwd: cwd, scrollback: scrollback, command: command)
         wire(pane)
         return pane
     }
@@ -826,6 +826,7 @@ final class TerminalWindowController: NSWindowController, NSWindowDelegate {
             ("Option as Meta Key", "option", \.optionAsMeta),
             ("GPU Renderer (Metal)", "cpu", \.gpu),
             ("Restore Session at Launch", "clock.arrow.circlepath", \.restoreSession),
+            ("Rerun Full-Screen Commands", "arrow.clockwise", \.rerunCommands),
         ]
         for (title, symbol, kp) in toggles {
             list.append(Command(title: title, group: "Settings", symbol: symbol, checked: s[keyPath: kp]) { [weak self] in
@@ -898,7 +899,8 @@ extension TerminalWindowController {
                           children: split.arrangedSubviews.map(save))
         }
         let pane = view as? PaneView
-        return .pane(cwd: pane?.directory, scrollback: pane?.term.savedScrollback())
+        return .pane(cwd: pane?.directory, scrollback: pane?.term.savedScrollback(),
+                     command: pane?.term.savedCommand())
     }
 
     fileprivate func restore(_ saved: SavedWindow, marker: String) {
@@ -917,8 +919,9 @@ extension TerminalWindowController {
 
     private func build(_ node: SavedNode, marker: String) -> NSView {
         switch node {
-        case .pane(let cwd, let scrollback):
-            return makePane(cwd: cwd, scrollback: scrollback.map { $0 + marker })
+        case .pane(let cwd, let scrollback, let command):
+            return makePane(cwd: cwd, scrollback: scrollback.map { $0 + marker },
+                            command: Settings.shared.rerunCommands ? command : nil)
         case .split(let vertical, let fractions, let children):
             let split = PaneSplitView()
             split.isVertical = vertical

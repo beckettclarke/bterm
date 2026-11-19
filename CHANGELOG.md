@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+- Restore windows, tabs, splits, folders and scrollback at launch
+- Optionally rerun full-screen commands like Claude and other TUIs when restoring a session
+- Double-click a tab to rename it, or use the new right-click menu
+
 ## 1.2.1
 
 - Windows, tabs and scrollback reopen where you left off

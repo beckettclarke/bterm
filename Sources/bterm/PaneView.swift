@@ -28,7 +28,7 @@ final class PaneView: NSView, LocalProcessTerminalViewDelegate {
     static let inset = NSEdgeInsets(top: 10, left: 14, bottom: 4, right: 4)
 
     /// `scrollback` is a previous session's output (see `BTermView.savedScrollback`), shown above the new prompt.
-    init(cwd: String?, scrollback: String? = nil) {
+    init(cwd: String?, scrollback: String? = nil, command: String? = nil) {
         term = BTermView(font: Settings.shared.font)
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
         wantsLayer = true
@@ -53,6 +53,11 @@ final class PaneView: NSView, LocalProcessTerminalViewDelegate {
         applySettings()
         if let scrollback { term.feed(text: scrollback) }
         start(cwd: cwd)
+        if let command {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.term.send(txt: command + "\r")
+            }
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }

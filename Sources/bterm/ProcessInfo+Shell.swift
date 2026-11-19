@@ -17,6 +17,36 @@ enum ProcInfo {
         }
     }
 
+    static func commandLine(of pid: pid_t) -> String? {
+        guard pid > 0 else { return nil }
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return nil }
+        var data = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &data, &size, nil, 0) == 0 else { return nil }
+        let argc = data.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
+        guard argc > 0 else { return nil }
+        var offset = MemoryLayout<Int32>.size
+
+        func argument() -> String? {
+            guard offset < data.count else { return nil }
+            guard let end = data[offset...].firstIndex(of: 0) else { return nil }
+            let value = String(decoding: data[offset..<end], as: UTF8.self)
+            offset = end + 1
+            return value
+        }
+
+        _ = argument()
+        while offset < data.count, data[offset] == 0 { offset += 1 }
+        guard let first = argument() else { return nil }
+        let titleParts = first.split(whereSeparator: \.isWhitespace)
+        if titleParts.count > 1 {
+            return titleParts.map { shellEscape(String($0)) }.joined(separator: " ")
+        }
+        let rest = (1..<argc).compactMap { _ in argument() }
+        return ([first] + rest).map(shellEscape).joined(separator: " ")
+    }
+
     static func cwd(of pid: pid_t) -> String? {
         guard pid > 0 else { return nil }
         var info = proc_vnodepathinfo()

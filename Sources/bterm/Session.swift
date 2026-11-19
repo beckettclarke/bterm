@@ -26,7 +26,7 @@ struct SavedTab: Codable {
 }
 
 indirect enum SavedNode: Codable {
-    case pane(cwd: String?, scrollback: String?)
+    case pane(cwd: String?, scrollback: String?, command: String?)
     case split(vertical: Bool, fractions: [Double], children: [SavedNode])
 }
 
