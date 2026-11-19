@@ -82,17 +82,11 @@ final class BTermWindow: NSWindow {
     var afterLayout: (() -> Void)?
     /// Returns true when the chrome AppKit just laid out needs correcting.
     var needsFix: (() -> Bool)?
-    private var fixScheduled = false
 
     override func layoutIfNeeded() {
         super.layoutIfNeeded()
-        // Frames can't be changed inside the layout pass itself; fix up right after it.
-        guard !fixScheduled, needsFix?() == true else { return }
-        fixScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            self?.fixScheduled = false
-            self?.afterLayout?()
-        }
+        // Fix up right after the layout pass, before the window draws, so the default positions never show.
+        if needsFix?() == true { afterLayout?() }
     }
 }
 
